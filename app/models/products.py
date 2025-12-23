@@ -6,6 +6,4 @@ class Product(BaseModel):
     id: str
     nombre: str
     precio: float
-    categoria: list
-    reviews: list
     stock: int
