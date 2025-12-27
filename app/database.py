@@ -10,5 +10,4 @@ try:
 except Exception as e:
     print(e)
 
-collecction = client.products
 
