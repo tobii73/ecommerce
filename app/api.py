@@ -1,30 +1,8 @@
 from fastapi import FastAPI
+from routers import users, business, products
 
 app = FastAPI()
 
-@app.get('/')
-async def welcome():
-    return {
-        "message": "Bienvenido"
-    }
-
-
-@app.get('/api/productos')
-async def get_products():
-    return 'all products'
-
-@app.post('/api/productos')
-async def create_products():
-    return 'create products'
-
-@app.get('/api/productos/{id}')
-async def get_products_id(id:str):
-    return 'single products'
-
-@app.put('/api/productos/{id}')
-async def update_products(id : str):
-    return 'update products'
-
-@app.delete('/api/productos/{id}')
-async def delete_products(id: str):
-    return 'delete products'
+app.include_router(users.router)
+app.include_router(business.router)
+app.include_router(products.router)

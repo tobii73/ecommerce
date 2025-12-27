@@ -1,14 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import Optional
-
-# creamos el modelo de nuestro producto
-
-class Product(BaseModel):
-    id: Optional[str] = Field(default=None, alias="_id") 
-    nombre: str
-    precio: float
-    stock: int
-
-    class Config:
-        # Esto permite que MongoDB's '_id' se mapee a 'id' en tu modelo
-        populate_by_name = True 
+class ProductModel:
+    def __init__(self, name, price, business_id, description=None):
+        self.name = name
+        self.price = price
+        self.description = description
+        self.business_id = business_id
