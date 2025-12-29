@@ -13,7 +13,12 @@ class BusinessBase(BaseModel):
 class BusinessCreate(BusinessBase):
     # En un sistema con JWT, el dueño suele extraerse del token, 
     # pero puede definirse aquí si se envía manualmente.
-    owner_id: str
+    pass
+
+class BusinessUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
 
 # Esquema para las respuestas de la API (GET /business/get)
 class BusinessResponse(BusinessBase):
@@ -37,4 +42,4 @@ class BusinessResponse(BusinessBase):
 
 # Esquema para la eliminación (DELETE /business/delete)
 class BusinessDelete(BaseModel):
-    id: str
+    id: str = Field(alias="_id")
