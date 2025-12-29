@@ -1,89 +1,96 @@
-from fastapi import APIRouter, status, HTTPException
-from models.users import User
-from database import client
-from ..schemas.users import user_schema, usuarios_db
-from dotenv import load_dotenv
-import os
-from bson import ObjectId
-load_dotenv(".env")
+from fastapi import APIRouter, HTTPException, Depends, status
+from app.schemas.users import UserCreate, UserLogin, UserResponse
+from ..core.auth import Hash, get_current_user,create_access_token
+from typing import List
+from app.database import get_db
 
-key = os.getenv("KEY")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_DURATION = 30
 
 router = APIRouter(
-    prefix="users",
-    tags=["users"],
+    prefix="/user",
+    tags=["user"],
     responses={status.HTTP_404_NOT_FOUND: {"message":"No encontrado"}}
 )
 
 
-@router.get("/",response_model=list[User])
-async def users():
-    return usuarios_db(client.users.find())
 
-@router.get("/{id}")
-async def path_users():
-    return search_user("_id", ObjectId(id))
-
-@router.get("/query/") # Query , se utiliza para filtrar 
-async def query_user(id : str):
-    return search_user("_id", ObjectId(id))
-
-@router.post("/", response_model=User,status_code=status.HTTP_201_CREATED)
-async def user(user: User):
-    
-    if search_user_by_email("email",user.email):
+@router.post("/registration", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def registration(request: UserCreate, db = Depends(get_db)):
+    # Verificar si el usuario ya existe en MongoDB
+    existing_user = await db["users"].find_one({"email": request.email})
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este email ya está registrado"
+            detail="El correo electrónico ya está registrado."
         )
-
-    user_dict = user.model_dump(exclude_none=True)
     
-    id = client.users.insert_one(user_dict).inserted_id
-
-    new_user = user_schema(client.users.find_one({"_id": id}))
+    # Crear el diccionario del nuevo usuario usando tu clase Hash
+    new_user = {
+        "username": request.username,
+        "email": request.email,
+        "password": Hash.bcrypt(request.password) # Usamos tu método de hasheo
+    }
     
-    return User(**new_user)
-
-
-@router.put("/",response_model=User)
-async def user(user: User):
-
-    user_dict = dict(user)
-    del user_dict["id"]
-
-    try:
-        client.users.find_one_and_replace(
-            {"_id":ObjectId(user.id)}, user_dict)
-    except:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No se ha encontrado el usuario")
- 
-    return search_user("_id",ObjectId(user.id))
-
-@router.delete("/{id}",status_code=status.HTTP_204_NO_CONTENT)
-async def user(id: str):
-   
-    found =  client.users.find_one_and_delete({"_id":ObjectId(id)})
-
-    if not found:
-       raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No se ha encontrado el usuario")
+    # Insertar en la colección de MongoDB
+    result = await db["users"].insert_one(new_user)
     
+    # Recuperar el usuario creado para devolverlo (mapeando el _id)
+    created_user = await db["users"].find_one({"_id": result.inserted_id})
+    # CONVERSIÓN NECESARIA:
+    created_user["_id"] = str(created_user["_id"]) 
+    return created_user
 
 
-def search_user(field:str, key) -> bool:
-    try:
-        user = client.users.find_one({field:key})
-        return User(**user_schema(user)) is not None
-    except:
-        return False
+# 2. Inicio de Sesión (Basado en POST /user/login) [1]
+@router.post("/login")
+async def login(request: UserLogin, db = Depends(get_db)):
+    # Buscar al usuario por el email (que es lo que usa tu sub en el token)
+    user = await db["users"].find_one({"email": request.email})
     
-def search_user_by_email(field:str, key) -> bool:
-    try:
-       user = client.users.find_one({field:key})
-       return User(**user_schema(user)) is not None
-    except:
-        return False
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Credenciales inválidas"
+        )
+    
+    # Verificar contraseña con tu clase Hash
+    if not Hash.verify(request.password, user["password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Contraseña incorrecta"
+        )
+    
+    # Generar el Token JWT usando tu función
+    access_token = create_access_token(data={"sub": user["email"]})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# 3. Obtener Usuarios (Basado en GET /user/users) [1]
+# Opcional: puedes protegerlo con Depends(get_current_user)
+@router.get("/users", response_model=List[UserResponse])
+async def get_all_users(db = Depends(get_db), _ = Depends(get_current_user)):
+    users_cursor = db["users"].find()
+    users = await users_cursor.to_list(length=100)
+    
+    # IMPORTANTE: Formatear los documentos para que coincidan con el schema
+    formatted_users = []
+    for user in users:
+        formatted_users.append({
+            "_id": str(user["_id"]),  # <-- Usar '_id' porque el alias así lo espera
+            "username": user.get("username", ""),
+            "email": user.get("email", "")
+        })
+    
+    return formatted_users
 
 
+
+
+
+
+
+
+# @router.get("/users", response_model=List[UserResponse])
+# async def get_all_users(db = Depends(get_db), current_user = Depends(get_current_user)):
+#     # Recuperar todos los documentos de la colección "users"
+#     users_cursor = db["users"].find()
+#     users = await users_cursor.to_list(length=100)
+#     return users

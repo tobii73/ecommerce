@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field,ConfigDict
 from typing import Optional
 
 ###########---USER SCHEMAS---###########
@@ -11,15 +11,14 @@ class UserCreate(BaseModel):
 
 #Login
 class UserLogin(BaseModel):
-    username: str
+    email: EmailStr
     password: str
 
 # Esquema para devolver datos 
 class UserResponse(BaseModel):
-    id: str = Field(alias="_id") 
+    id: str = Field(..., alias="_id")
     username: str
     email: EmailStr
-    
     
     class Config:
         populate_by_name = True
