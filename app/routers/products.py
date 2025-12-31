@@ -10,7 +10,6 @@ router = APIRouter(
     tags=["Products"]
 )
 
-# 1. Agregar un nuevo producto (POST /products/add)
 @router.post("/add", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def add_product(request: ProductCreate, db = Depends(get_db), current_user = Depends(get_current_user)):
     # Verificamos que el negocio (business_id) exista y pertenezca al usuario
@@ -32,7 +31,6 @@ async def add_product(request: ProductCreate, db = Depends(get_db), current_user
     created_product["_id"] = str(created_product["_id"])
     return created_product
 
-# 2. Obtener todos los productos (GET /products/get)
 @router.get("/get", response_model=List[ProductResponse])
 async def get_all_products(db = Depends(get_db)):
     # Recupera todos los productos sin necesidad de autenticación (catálogo público)
@@ -43,7 +41,6 @@ async def get_all_products(db = Depends(get_db)):
         product["_id"] = str(product["_id"])
     return products
 
-# 3. Actualizar un producto (PUT /products/update/{id})
 @router.put("/update/{id}", response_model=ProductResponse)
 async def update_product(id: str, request: ProductUpdate, db = Depends(get_db), current_user = Depends(get_current_user)):
     product = await db["products"].find_one({"_id": ObjectId(id)})
@@ -58,7 +55,6 @@ async def update_product(id: str, request: ProductUpdate, db = Depends(get_db), 
     updated_product["_id"] = str(updated_product["_id"])
     return updated_product
 
-# 4. Eliminar un producto (DELETE /products/delete/{id})
 @router.delete("/delete/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(id: str, db = Depends(get_db), current_user = Depends(get_current_user)):
     product = await db["products"].find_one({"_id": ObjectId(id)})

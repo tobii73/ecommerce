@@ -10,7 +10,6 @@ router = APIRouter(
     tags=["Business"]
 )
 
-# 1. Crear un nuevo negocio (POST /business/add)
 @router.post("/add", response_model=BusinessResponse, status_code=status.HTTP_201_CREATED)
 async def add_business(request: BusinessCreate, db = Depends(get_db), current_user = Depends(get_current_user)):
     # Preparamos el documento del negocio
@@ -25,7 +24,6 @@ async def add_business(request: BusinessCreate, db = Depends(get_db), current_us
     created_business["_id"] = str(created_business["_id"])
     return created_business
 
-# 2. Obtener todos los negocios (GET /business/get)
 @router.get("/get", response_model=List[BusinessResponse])
 async def get_all_businesses(db = Depends(get_db)):
     # Recuperamos todos los negocios registrados en el sistema
@@ -60,7 +58,6 @@ async def update_business(id:str,request: BusinessUpdate ,db = Depends(get_db), 
     return updated_business
 
 
-# 3. Eliminar un negocio (DELETE /business/delete/{id})
 @router.delete("/delete/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_business(id: str, db = Depends(get_db), current_user = Depends(get_current_user)):
     # Buscamos el negocio por su ID de MongoDB

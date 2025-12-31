@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from app.schemas.users import UserCreate, UserLogin, UserResponse
-from ..core.auth import Hash, get_current_user,create_access_token
+from app.schemas.users import UserCreate, UserLogin, UserResponse, RefreshTokenRequest
+from ..core.auth import Hash, get_current_user,create_access_token, create_refresh_token,refresh_access_token
 from typing import List
 from app.database import get_db
 
@@ -40,7 +40,6 @@ async def registration(request: UserCreate, db = Depends(get_db)):
     return created_user
 
 
-# 2. Inicio de Sesión (Basado en POST /user/login) [1]
 @router.post("/login")
 async def login(request: UserLogin, db = Depends(get_db)):
     # Buscar al usuario por el email (que es lo que usa tu sub en el token)
@@ -61,10 +60,42 @@ async def login(request: UserLogin, db = Depends(get_db)):
     
     # Generar el Token JWT usando tu función
     access_token = create_access_token(data={"sub": user["email"]})
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    refresh_token = create_refresh_token(data={"sub": user["email"]})
 
-# 3. Obtener Usuarios (Basado en GET /user/users) [1]
-# Opcional: puedes protegerlo con Depends(get_current_user)
+    await db["users"].update_one(
+        {"_id": user["_id"]},
+        {"$set": {"refresh_token": refresh_token}}
+    )
+    return {"access_token": access_token,"refresh_token":refresh_token ,"token_type": "bearer"}
+
+
+
+@router.post("/refresh")
+async def refresh_token(refresh_request: RefreshTokenRequest,db = Depends(get_db)):
+
+    refresh_token = refresh_request.refresh_token
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Refresh token requerido"
+        )
+    
+    try:
+        # Usar la función refresh_access_token de auth.py
+        tokens = await refresh_access_token(refresh_token, db)
+        return tokens
+    except HTTPException as e:
+        # Re-lanzar excepciones HTTP que ya vienen con formato correcto
+        raise e
+    except Exception as e:
+        # Capturar cualquier otro error inesperado
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error renovando token: {str(e)}"
+        )
+
 @router.get("/users", response_model=List[UserResponse])
 async def get_all_users(db = Depends(get_db), _ = Depends(get_current_user)):
     users_cursor = db["users"].find()

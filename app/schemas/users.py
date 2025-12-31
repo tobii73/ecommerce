@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field,ConfigDict
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 ###########---USER SCHEMAS---###########
@@ -30,4 +30,8 @@ class Token(BaseModel):
     token_type: str
 
 class TokenData(BaseModel):
-    email: str 
+    email: EmailStr
+    token_type: Optional[str] = None 
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
