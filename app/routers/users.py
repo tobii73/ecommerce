@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from app.schemas.users import UserCreate, UserLogin, UserResponse
-from ..core.auth import Hash, get_current_user,create_access_token
+from app.schemas.users import UserCreate, UserLogin, UserResponse, UserRole
+from ..core.auth import Hash, create_access_token
+from ..core.depends import get_current_user
 from typing import List
 from app.database import get_db
-
+from bson import ObjectId
 
 router = APIRouter(
     prefix="/user",
@@ -12,38 +13,29 @@ router = APIRouter(
 )
 
 
-
 @router.post("/registration", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def registration(request: UserCreate, db = Depends(get_db)):
-    # Verificar si el usuario ya existe en MongoDB
     existing_user = await db["users"].find_one({"email": request.email})
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El correo electrónico ya está registrado."
-        )
+        raise HTTPException(400, "Usuario ya existe")
     
-    # Crear el diccionario del nuevo usuario usando tu clase Hash
-    new_user = {
-        "username": request.username,
-        "email": request.email,
-        "password": Hash.bcrypt(request.password) # Usamos tu método de hasheo
-    }
+    user_data = request.model_dump(exclude={"password"})
     
-    # Insertar en la colección de MongoDB
-    result = await db["users"].insert_one(new_user)
+    user_data["password"] = Hash.bcrypt(request.password)
+    user_data["role"] = "customer"
     
-    # Recuperar el usuario creado para devolverlo (mapeando el _id)
+    
+    result = await db["users"].insert_one(user_data)
+    
     created_user = await db["users"].find_one({"_id": result.inserted_id})
-    # CONVERSIÓN NECESARIA:
-    created_user["_id"] = str(created_user["_id"]) 
+    
+    created_user["_id"] = str(created_user["_id"])
     return created_user
 
 
-# 2. Inicio de Sesión (Basado en POST /user/login) [1]
 @router.post("/login")
 async def login(request: UserLogin, db = Depends(get_db)):
-    # Buscar al usuario por el email (que es lo que usa tu sub en el token)
+    # Buscar al usuario por el email
     user = await db["users"].find_one({"email": request.email})
     
     if not user:
@@ -74,7 +66,7 @@ async def get_all_users(db = Depends(get_db), _ = Depends(get_current_user)):
     formatted_users = []
     for user in users:
         formatted_users.append({
-            "_id": str(user["_id"]),  # <-- Usar '_id' porque el alias así lo espera
+            "_id": str(user["_id"]), 
             "username": user.get("username", ""),
             "email": user.get("email", "")
         })
@@ -83,14 +75,27 @@ async def get_all_users(db = Depends(get_db), _ = Depends(get_current_user)):
 
 
 
+@router.get("/me", response_model=UserResponse)
+async def get_my_profile(current_user = Depends(get_current_user)):
+    """Obtener el perfil del usuario actual"""
+    return current_user
+
+@router.put("/me/update-role")
+async def update_my_role(
+    new_role: UserRole,
+    db = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Solo admin puede cambiar roles (para gestión)"""
+    # Verificar que sea admin
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin puede cambiar roles")
+    
+    await db["users"].update_one(
+        {"_id": ObjectId(current_user["_id"])},
+        {"$set": {"role": new_role}}
+    )
+    
+    return {"message": f"Rol actualizado a {new_role}"}
 
 
-
-
-
-# @router.get("/users", response_model=List[UserResponse])
-# async def get_all_users(db = Depends(get_db), current_user = Depends(get_current_user)):
-#     # Recuperar todos los documentos de la colección "users"
-#     users_cursor = db["users"].find()
-#     users = await users_cursor.to_list(length=100)
-#     return users

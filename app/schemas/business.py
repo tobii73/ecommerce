@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 
 ###########---BUSINESS SCHEMAS---###########
 
@@ -24,7 +25,11 @@ class BusinessUpdate(BaseModel):
 class BusinessResponse(BusinessBase):
     # Mapeamos el ID de MongoDB para que sea legible como string
     id: str = Field(alias="_id")
+    name: str
+    description: str
     owner_id: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None 
 
     class Config:
         # Permite que Pydantic trabaje con los diccionarios de MongoDB
