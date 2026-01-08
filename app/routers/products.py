@@ -55,6 +55,26 @@ async def get_all_products(db = Depends(get_db)):
         product["_id"] = str(product["_id"])
     return products
 
+@router.get("/my-products")
+async def get_my_products(
+    db = Depends(get_db),
+    current_user = Depends(require_seller)  # Solo vendedores acceden
+):
+    """
+    Endpoint que devuelve TODOS los productos creados por el usuario autenticado.
+    """
+    # Filtramos la búsqueda en la colección 'products' por el ID del dueño
+    cursor = db["products"].find({"owner_id": str(current_user["_id"])})
+    
+    # Convertimos el cursor a una lista
+    products_list = await cursor.to_list(length=None)
+    
+    # Convertimos los ObjectId a string para la respuesta JSON
+    for product in products_list:
+        product["_id"] = str(product["_id"])
+    
+    return products_list
+
 # 3. Actualizar un producto (PUT /products/update/{id})
 @router.put("/update/{product_id}", response_model=ProductResponse)
 async def update_product( 
@@ -93,3 +113,5 @@ async def delete_product(product_id: str, db = Depends(get_db), current_user = D
 
     await db["products"].delete_one({"_id": ObjectId(product_id)})
     return {"message": "Producto eliminado"}
+
+# ...
